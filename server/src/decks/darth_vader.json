@@ -1,0 +1,39 @@
+{
+  "deckId": "darth_vader",
+  "version": "1.0.0",
+  "characters": [
+    { "id": "darth_vader", "name": "Darth Vader", "role": "MAJOR", "maxHP": 20, "combatType": "MELEE" },
+    { "id": "stormtrooper_1", "name": "Stormtrooper", "role": "MINOR", "maxHP": 4, "combatType": "RANGED" },
+    { "id": "stormtrooper_2", "name": "Stormtrooper", "role": "MINOR", "maxHP": 4, "combatType": "RANGED" }
+  ],
+  "cards": [
+    {
+      "id": "vader_lightsaber_strike_1",
+      "name": "Lightsaber Strike",
+      "type": "BASIC_COMBAT",
+      "characterId": "darth_vader",
+      "attackValue": 5,
+      "defendValue": 3,
+      "specialEffect": null,
+      "countsAsAction": true,
+      "description": "A powerful lightsaber strike.",
+      "quantity": 2
+    },
+    {
+      "id": "vader_dark_side_drain",
+      "name": "Dark Side Drain",
+      "type": "POWER_COMBAT",
+      "characterId": "darth_vader",
+      "attackValue": 4,
+      "defendValue": null,
+      "specialEffect": {
+        "type": "STEAL_LIFE",
+        "value": 4,
+        "targetType": "ANY_CHARACTER"
+      },
+      "countsAsAction": true,
+      "description": "Deal 4 damage and heal Vader for 4 HP.",
+      "quantity": 1
+    }
+  ]
+}
