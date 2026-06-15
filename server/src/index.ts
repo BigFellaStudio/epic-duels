@@ -69,7 +69,10 @@ io.on("connection", (socket) => {
     if (!state || state.gameOver) return;
 
     const activeTeam = state.teams[state.activeTeamIndex];
-    if (activeTeam.ownerId !== socket.id) return; // not your turn
+    if (activeTeam.ownerId !== socket.id) {
+      socket.emit("error", { message: "It is not your turn." });
+      return;
+    }
 
     try {
       state = handleAction(state, socket.id, action);
@@ -207,20 +210,7 @@ function handleAction(state: GameState, playerId: string, action: ActionPayload)
       mover.position = dest;
       state.characterMovesUsed[charId] = stepsUsed + action.path.length;
 
-      // Auto-advance to ACTION when all movement is exhausted
-      const myLivingChars = [myTeam!.majorCharacter, ...myTeam!.minorCharacters].filter(
-        (c) => c.isAlive
-      );
-      const allExhausted = myLivingChars.every(
-        (c) => (state.characterMovesUsed[c.id] ?? 0) >= moveCount
-      );
-      const oneExhausted =
-        whoMoves === "ONE" && (state.characterMovesUsed[charId] ?? 0) >= moveCount;
-
-      if (oneExhausted || (whoMoves === "ALL" && allExhausted)) {
-        state.currentPhase = "ACTION";
-        state.characterMovesUsed = {};
-      }
+      // Player must click Confirm Movement to end the move phase
       break;
     }
 

@@ -297,8 +297,22 @@ export default function App() {
           selectedCardId={selectedCardId}
           playableCardIds={playableCardIds}
           onSelectCard={(id) => {
-            setSelectedCardId(id === selectedCardId ? null : id);
+            if (id === selectedCardId) {
+              setSelectedCardId(null);
+              setSelectedCharId(null);
+              setSelectedTargetId(null);
+              return;
+            }
+            setSelectedCardId(id);
             setSelectedTargetId(null);
+            // Auto-select the attacker if the card's character is alive and on the board
+            const card = myTeam?.hand.find((c) => c.id === id);
+            if (card) {
+              const attacker = allChars.find(
+                (c) => c.id === card.characterId && c.isAlive && c.position
+              );
+              setSelectedCharId(attacker?.id ?? null);
+            }
           }}
           phase={gameState.currentPhase}
         />

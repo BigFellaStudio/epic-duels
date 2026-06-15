@@ -35,11 +35,11 @@ function buildTeam(
 
   const teamId = `team_${teamIndex}`;
 
-  const makeChar = (
-    def: typeof major,
-    suffix?: string
-  ): Character => ({
-    id: suffix ? `${def.id}_${suffix}` : def.id,
+  // Prefix character IDs with teamId so two teams using the same deck don't collide
+  const prefixId = (id: string) => `${teamId}_${id}`;
+
+  const makeChar = (def: typeof major): Character => ({
+    id: prefixId(def.id),
     name: def.name,
     role: def.role,
     teamId,
@@ -50,14 +50,20 @@ function buildTeam(
     position: null,
   });
 
-  const shuffledDeck = shuffle(deck.cards);
+  // Also prefix characterId on every card so card→character matching still works
+  const prefixedCards: typeof deck.cards = deck.cards.map((c) => ({
+    ...c,
+    characterId: prefixId(c.characterId),
+  }));
+
+  const shuffledDeck = shuffle(prefixedCards);
   const hand = shuffledDeck.splice(0, 4);
 
   return {
     id: teamId,
     ownerId: player.id,
     majorCharacter: makeChar(major),
-    minorCharacters: minors.map((m, i) => makeChar(m, String(i + 1))),
+    minorCharacters: minors.map((m) => makeChar(m)),
     deck: shuffledDeck,
     hand,
     discardPile: [],
