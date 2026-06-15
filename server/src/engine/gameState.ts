@@ -139,5 +139,6 @@ export function initGameState(
     pendingCombat: null,
     winner: null,
     gameOver: false,
+    characterMovesUsed: {},
   };
 }

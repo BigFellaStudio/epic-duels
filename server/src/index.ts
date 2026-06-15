@@ -120,26 +120,46 @@ function handleAction(state: GameState, playerId: string, action: ActionPayload)
       if (state.currentPhase !== "ROLL") throw new Error("Not in roll phase");
       state.currentDieRoll = rollDie();
       state.currentPhase = "MOVE";
+      state.characterMovesUsed = {};
       break;
     }
 
     case "SKIP_MOVE": {
       if (state.currentPhase !== "MOVE") throw new Error("Not in move phase");
       state.currentPhase = "ACTION";
+      state.characterMovesUsed = {};
       break;
     }
 
     case "MOVE": {
       if (state.currentPhase !== "MOVE") throw new Error("Not in move phase");
-      if (!action.characterId || !action.path) throw new Error("Missing move data");
+      if (!action.characterId || !action.path || action.path.length === 0) throw new Error("Missing move data");
       if (!state.currentDieRoll) throw new Error("No die roll");
 
+      const { moveCount, whoMoves } = state.currentDieRoll;
+      const charId = action.characterId;
+
       const allChars = getAllCharacters(state);
-      const mover = allChars.find((c) => c.id === action.characterId);
+      const mover = allChars.find((c) => c.id === charId);
       if (!mover || !mover.isAlive) throw new Error("Invalid character");
 
-      const myTeam = getTeamForCharacter(state, action.characterId);
+      const myTeam = getTeamForCharacter(state, charId);
       if (myTeam?.ownerId !== playerId) throw new Error("Not your character");
+
+      // "ONE" die: only one character may move this turn
+      if (whoMoves === "ONE") {
+        const alreadyMoved = Object.keys(state.characterMovesUsed).filter(
+          (id) => id !== charId && (state.characterMovesUsed[id] ?? 0) > 0
+        );
+        if (alreadyMoved.length > 0) throw new Error("Only one character may move on this roll");
+      }
+
+      // Check remaining steps for this character
+      const stepsUsed = state.characterMovesUsed[charId] ?? 0;
+      const stepsRemaining = moveCount - stepsUsed;
+      if (action.path.length > stepsRemaining) {
+        throw new Error(`Only ${stepsRemaining} step(s) remaining for this character`);
+      }
 
       const enemyIds = new Set(
         state.teams
@@ -150,9 +170,9 @@ function handleAction(state: GameState, playerId: string, action: ActionPayload)
       const valid = validatePath(
         state.board,
         allChars,
-        action.characterId,
+        charId,
         action.path,
-        state.currentDieRoll.moveCount,
+        stepsRemaining,
         (id) => enemyIds.has(id)
       );
 
@@ -160,9 +180,22 @@ function handleAction(state: GameState, playerId: string, action: ActionPayload)
 
       const dest = action.path[action.path.length - 1];
       mover.position = dest;
+      state.characterMovesUsed[charId] = stepsUsed + action.path.length;
 
-      // If "ALL" die and more characters to move, stay in MOVE phase
-      // Client tracks remaining movers; SKIP_MOVE ends the phase
+      // Auto-advance to ACTION when all movement is exhausted
+      const myLivingChars = [myTeam!.majorCharacter, ...myTeam!.minorCharacters].filter(
+        (c) => c.isAlive
+      );
+      const allExhausted = myLivingChars.every(
+        (c) => (state.characterMovesUsed[c.id] ?? 0) >= moveCount
+      );
+      const oneExhausted =
+        whoMoves === "ONE" && (state.characterMovesUsed[charId] ?? 0) >= moveCount;
+
+      if (oneExhausted || (whoMoves === "ALL" && allExhausted)) {
+        state.currentPhase = "ACTION";
+        state.characterMovesUsed = {};
+      }
       break;
     }
 

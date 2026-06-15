@@ -117,6 +117,7 @@ export interface GameState {
   pendingCombat: CombatState | null;
   winner: string | null;
   gameOver: boolean;
+  characterMovesUsed: Record<string, number>; // charId → steps used this turn
 }
 
 // Socket event payloads

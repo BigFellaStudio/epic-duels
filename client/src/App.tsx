@@ -18,6 +18,7 @@ export default function App() {
   const [roomCode, setRoomCode] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [myTeamId, setMyTeamId] = useState<string | null>(null);
+  const [gameError, setGameError] = useState<string | null>(null);
 
   // Selection state
   const [selectedCardId, setSelectedCardId] = useState<string | null>(null);
@@ -44,7 +45,14 @@ export default function App() {
       setSelectedTargetId(null);
       setMovePath([]);
     },
-    onError: (msg) => setError(msg),
+    onError: (msg) => {
+      if (screen === "game") {
+        setGameError(msg);
+        setTimeout(() => setGameError(null), 3000);
+      } else {
+        setError(msg);
+      }
+    },
   });
 
   const myTeam = gameState?.teams.find((t) => t.id === myTeamId) ?? null;
@@ -61,7 +69,9 @@ export default function App() {
     if (!gameState || !isMyTurn || gameState.currentPhase !== "MOVE" || !selectedCharId) return [];
     const char = allChars.find((c) => c.id === selectedCharId);
     if (!char || !char.position || !gameState.currentDieRoll) return [];
-    const maxSteps = gameState.currentDieRoll.moveCount;
+    const stepsUsed = gameState.characterMovesUsed[selectedCharId] ?? 0;
+    const maxSteps = gameState.currentDieRoll.moveCount - stepsUsed;
+    if (maxSteps <= 0) return [];
     const targets: { row: number; col: number }[] = [];
     const { grid } = gameState.board;
     const occupied = new Set(
@@ -214,6 +224,11 @@ export default function App() {
         />
       )}
 
+      {/* In-game error toast */}
+      {gameError && (
+        <div style={styles.errorToast}>{gameError}</div>
+      )}
+
       {/* Header */}
       <div style={styles.header}>
         <span style={styles.logo}>⚔ EPIC DUELS</span>
@@ -309,6 +324,12 @@ const styles: Record<string, React.CSSProperties> = {
   gameOverOverlay: {
     position: "fixed", inset: 0, background: "#000c",
     display: "flex", alignItems: "center", justifyContent: "center", zIndex: 200,
+  },
+  errorToast: {
+    position: "fixed", top: 16, left: "50%", transform: "translateX(-50%)",
+    background: "#5a0000", border: "1px solid #c0392b", borderRadius: 8,
+    padding: "10px 24px", color: "#ff8080", fontWeight: 600, fontSize: 14,
+    zIndex: 300, pointerEvents: "none" as const,
   },
   gameOverBox: {
     background: "#12121e", border: "2px solid #444", borderRadius: 16,
