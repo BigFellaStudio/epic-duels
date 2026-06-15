@@ -83,7 +83,7 @@ io.on("connection", (socket) => {
     }
   });
 
-  // Defense response (outside normal turn — any player can respond)
+  // Defense response — played by the defending player outside of normal turn order
   socket.on("defend", ({ roomCode, cardId }: { roomCode: string; cardId: string | null }) => {
     let state = getGameState(roomCode);
     if (!state || !state.pendingCombat) return;
@@ -94,7 +94,10 @@ io.on("connection", (socket) => {
     const target = allChars.find((c) => c.id === combat.targetId)!;
 
     const defenderTeam = getTeamForCharacter(state, target.id);
-    if (defenderTeam?.ownerId !== socket.id) return;
+    if (defenderTeam?.ownerId !== socket.id) {
+      socket.emit("error", { message: "You are not the defending player." });
+      return;
+    }
 
     let defenseCard = null;
     if (cardId) {
@@ -106,6 +109,13 @@ io.on("connection", (socket) => {
 
     const attackCard = combat.attackCard;
     state = resolveCombat(state, attackCard, attacker, target, defenseCard);
+
+    // The PLAY action that initiated combat now counts — decrement and possibly end turn
+    state.currentPhase = "ACTION";
+    state.actionsRemainingThisTurn--;
+    if (state.actionsRemainingThisTurn <= 0) {
+      state = endTurn(state);
+    }
 
     const winner = checkWinCondition(state);
     if (winner) {

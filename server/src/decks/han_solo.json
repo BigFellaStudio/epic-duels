@@ -1,0 +1,182 @@
+{
+  "deckId": "han_solo",
+  "version": "1.0.0",
+  "characters": [
+    { "id": "han_solo", "name": "Han Solo", "role": "MAJOR", "maxHP": 17, "combatType": "RANGED" },
+    { "id": "chewbacca", "name": "Chewbacca", "role": "MINOR", "maxHP": 10, "combatType": "MELEE" }
+  ],
+  "cards": [
+    {
+      "id": "han_quick_shot",
+      "name": "Quick Shot",
+      "type": "BASIC_COMBAT",
+      "characterId": "han_solo",
+      "attackValue": 4,
+      "defendValue": 2,
+      "specialEffect": null,
+      "countsAsAction": true,
+      "description": "",
+      "quantity": 4
+    },
+    {
+      "id": "han_blaster_barrage",
+      "name": "Blaster Barrage",
+      "type": "BASIC_COMBAT",
+      "characterId": "han_solo",
+      "attackValue": 5,
+      "defendValue": 1,
+      "specialEffect": null,
+      "countsAsAction": true,
+      "description": "",
+      "quantity": 3
+    },
+    {
+      "id": "han_dodge",
+      "name": "Dodge",
+      "type": "BASIC_COMBAT",
+      "characterId": "han_solo",
+      "attackValue": 2,
+      "defendValue": 4,
+      "specialEffect": null,
+      "countsAsAction": true,
+      "description": "",
+      "quantity": 3
+    },
+    {
+      "id": "han_i_know",
+      "name": "I Know",
+      "type": "POWER_COMBAT",
+      "characterId": "han_solo",
+      "attackValue": 3,
+      "defendValue": 3,
+      "specialEffect": {
+        "type": "DRAW_CARDS",
+        "value": 1,
+        "targetType": "SELF"
+      },
+      "countsAsAction": true,
+      "description": "Attack or defend for 3, then draw 1 card.",
+      "quantity": 2
+    },
+    {
+      "id": "han_never_tell_odds",
+      "name": "Never Tell Me the Odds",
+      "type": "POWER_COMBAT",
+      "characterId": "han_solo",
+      "attackValue": 6,
+      "defendValue": null,
+      "specialEffect": {
+        "type": "DEAL_UNBLOCKABLE_DAMAGE",
+        "value": 2,
+        "targetType": "ANY_CHARACTER"
+      },
+      "countsAsAction": true,
+      "description": "Deal 6 damage. If it hits, also deal 2 unblockable damage.",
+      "quantity": 2
+    },
+    {
+      "id": "han_shoot_first",
+      "name": "Shoot First",
+      "type": "SPECIAL",
+      "characterId": "han_solo",
+      "attackValue": null,
+      "defendValue": null,
+      "specialEffect": {
+        "type": "DEAL_UNBLOCKABLE_DAMAGE",
+        "value": 3,
+        "targetType": "ANY_CHARACTER"
+      },
+      "countsAsAction": true,
+      "description": "Deal 3 unblockable damage to any character.",
+      "quantity": 2
+    },
+    {
+      "id": "han_draw_cards",
+      "name": "I've Got a Bad Feeling",
+      "type": "SPECIAL",
+      "characterId": "han_solo",
+      "attackValue": null,
+      "defendValue": null,
+      "specialEffect": {
+        "type": "DRAW_CARDS",
+        "value": 2,
+        "targetType": "SELF"
+      },
+      "countsAsAction": true,
+      "description": "Draw 2 cards.",
+      "quantity": 2
+    },
+    {
+      "id": "chewie_smash",
+      "name": "Wookiee Smash",
+      "type": "BASIC_COMBAT",
+      "characterId": "chewbacca",
+      "attackValue": 5,
+      "defendValue": 2,
+      "specialEffect": null,
+      "countsAsAction": true,
+      "description": "",
+      "quantity": 4
+    },
+    {
+      "id": "chewie_block",
+      "name": "Wookiee Block",
+      "type": "BASIC_COMBAT",
+      "characterId": "chewbacca",
+      "attackValue": 2,
+      "defendValue": 5,
+      "specialEffect": null,
+      "countsAsAction": true,
+      "description": "",
+      "quantity": 3
+    },
+    {
+      "id": "chewie_roar",
+      "name": "Wookiee Roar",
+      "type": "POWER_COMBAT",
+      "characterId": "chewbacca",
+      "attackValue": 4,
+      "defendValue": null,
+      "specialEffect": {
+        "type": "DISCARD_OPPONENT_CARDS",
+        "value": 1,
+        "targetType": "ANY_CHARACTER"
+      },
+      "countsAsAction": true,
+      "description": "Deal 4 damage. Opponent discards 1 card.",
+      "quantity": 2
+    },
+    {
+      "id": "chewie_heal",
+      "name": "Chewbacca's Care",
+      "type": "SPECIAL",
+      "characterId": "chewbacca",
+      "attackValue": null,
+      "defendValue": null,
+      "specialEffect": {
+        "type": "HEAL_SELF",
+        "value": 2,
+        "targetType": "SELF"
+      },
+      "countsAsAction": true,
+      "description": "Heal Han Solo for 2 HP.",
+      "quantity": 2
+    },
+    {
+      "id": "chewie_extra_move",
+      "name": "Wookiee Charge",
+      "type": "SPECIAL",
+      "characterId": "chewbacca",
+      "attackValue": null,
+      "defendValue": null,
+      "specialEffect": {
+        "type": "EXTRA_MOVEMENT",
+        "value": 3,
+        "targetType": "SELF"
+      },
+      "countsAsAction": true,
+      "description": "Move Chewbacca up to 3 additional spaces.",
+      "quantity": 2
+    }
+  ]
+}
