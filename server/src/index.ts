@@ -8,11 +8,11 @@ import {
   getGameState,
   updateGameState,
   listAvailableDecks,
+  reconnectPlayer,
+  getTokenForSocket,
 } from "./rooms/roomRegistry";
 import { ActionPayload, GameState } from "../shared/src/types";
-import {
-  rollDie,
-} from "./engine/gameState";
+import { rollDie } from "./engine/gameState";
 import { validatePath } from "./engine/movement";
 import {
   getAllCharacters,
@@ -33,7 +33,6 @@ const io = new Server(server, {
   cors: { origin: "*", methods: ["GET", "POST"] },
 });
 
-// REST: list available decks for lobby selection
 app.get("/decks", (_req, res) => {
   res.json({ decks: listAvailableDecks() });
 });
@@ -42,9 +41,9 @@ io.on("connection", (socket) => {
   console.log(`Socket connected: ${socket.id}`);
 
   socket.on("create_room", ({ deckId }: { deckId: string }) => {
-    const code = createRoom(socket.id, deckId);
+    const { code, token } = createRoom(socket.id, deckId);
     socket.join(code);
-    socket.emit("room_created", { roomCode: code });
+    socket.emit("room_created", { roomCode: code, playerToken: token });
   });
 
   socket.on("join_room", ({ roomCode, deckId }: { roomCode: string; deckId: string }) => {
@@ -54,13 +53,29 @@ io.on("connection", (socket) => {
       return;
     }
     socket.join(roomCode);
-    // Tell each player which team they control
     const state = result.gameState!;
+    // Tell each player which team they control, along with their stable token
     for (const team of state.teams) {
+      const token = team.id === "team_0" ? result.hostToken! : result.token!;
       io.to(team.ownerId).emit("game_start", {
         gameState: state,
         yourTeamId: team.id,
+        playerToken: token,
       });
+    }
+  });
+
+  // Player reconnects after a page refresh — re-associates their new socket with their token
+  socket.on("reconnect_player", ({ roomCode, token }: { roomCode: string; token: string }) => {
+    const result = reconnectPlayer(token, socket.id);
+    if (!result) {
+      socket.emit("error", { message: "Could not reconnect — game may have ended." });
+      return;
+    }
+    socket.join(roomCode);
+    const state = getGameState(roomCode);
+    if (state) {
+      socket.emit("reconnected", { gameState: state, yourTeamId: result.teamId });
     }
   });
 
@@ -68,14 +83,16 @@ io.on("connection", (socket) => {
     let state = getGameState(roomCode);
     if (!state || state.gameOver) return;
 
+    // Resolve the stable token for this socket, then check ownership
+    const token = getTokenForSocket(socket.id);
     const activeTeam = state.teams[state.activeTeamIndex];
-    if (activeTeam.ownerId !== socket.id) {
+    if (!token || activeTeam.ownerId !== token) {
       socket.emit("error", { message: "It is not your turn." });
       return;
     }
 
     try {
-      state = handleAction(state, socket.id, action);
+      state = handleAction(state, token, action);
       updateGameState(roomCode, state);
       io.to(roomCode).emit("state_update", { gameState: state });
     } catch (err) {
@@ -83,10 +100,12 @@ io.on("connection", (socket) => {
     }
   });
 
-  // Defense response — played by the defending player outside of normal turn order
   socket.on("defend", ({ roomCode, cardId }: { roomCode: string; cardId: string | null }) => {
     let state = getGameState(roomCode);
     if (!state || !state.pendingCombat) return;
+
+    const token = getTokenForSocket(socket.id);
+    if (!token) return;
 
     const combat = state.pendingCombat;
     const allChars = getAllCharacters(state);
@@ -94,7 +113,7 @@ io.on("connection", (socket) => {
     const target = allChars.find((c) => c.id === combat.targetId)!;
 
     const defenderTeam = getTeamForCharacter(state, target.id);
-    if (defenderTeam?.ownerId !== socket.id) {
+    if (defenderTeam?.ownerId !== token) {
       socket.emit("error", { message: "You are not the defending player." });
       return;
     }
@@ -102,26 +121,18 @@ io.on("connection", (socket) => {
     let defenseCard = null;
     if (cardId) {
       const card = defenderTeam!.hand.find((c) => c.id === cardId) ?? null;
-      if (card && card.characterId === target.id) {
-        defenseCard = card;
-      }
+      if (card && card.characterId === target.id) defenseCard = card;
     }
 
-    const attackCard = combat.attackCard;
-    state = resolveCombat(state, attackCard, attacker, target, defenseCard);
+    state = resolveCombat(state, combat.attackCard, attacker, target, defenseCard);
 
-    // The PLAY action that initiated combat now counts — decrement and possibly end turn
+    // The PLAY action that initiated combat now counts
     state.currentPhase = "ACTION";
     state.actionsRemainingThisTurn--;
-    if (state.actionsRemainingThisTurn <= 0) {
-      state = endTurn(state);
-    }
+    if (state.actionsRemainingThisTurn <= 0) state = endTurn(state);
 
     const winner = checkWinCondition(state);
-    if (winner) {
-      state.winner = winner;
-      state.gameOver = true;
-    }
+    if (winner) { state.winner = winner; state.gameOver = true; }
 
     updateGameState(roomCode, state);
     io.to(roomCode).emit("state_update", { gameState: state });
@@ -132,7 +143,7 @@ io.on("connection", (socket) => {
   });
 });
 
-function handleAction(state: GameState, playerId: string, action: ActionPayload): GameState {
+function handleAction(state: GameState, playerToken: string, action: ActionPayload): GameState {
   const activeTeam = state.teams[state.activeTeamIndex];
 
   switch (action.type) {
@@ -141,7 +152,6 @@ function handleAction(state: GameState, playerId: string, action: ActionPayload)
       state.currentDieRoll = rollDie();
       state.currentPhase = "MOVE";
       state.characterMovesUsed = {};
-      // Snapshot all character positions so RESET_MOVE can restore them
       const allCharsSnap = getAllCharacters(state);
       state.preMovePositions = Object.fromEntries(
         allCharsSnap.map((c) => [c.id, c.position ? { ...c.position } : null])
@@ -159,7 +169,6 @@ function handleAction(state: GameState, playerId: string, action: ActionPayload)
 
     case "RESET_MOVE": {
       if (state.currentPhase !== "MOVE") throw new Error("Not in move phase");
-      // Restore all characters to their pre-move positions
       const allCharsReset = getAllCharacters(state);
       for (const char of allCharsReset) {
         const saved = state.preMovePositions[char.id];
@@ -182,9 +191,8 @@ function handleAction(state: GameState, playerId: string, action: ActionPayload)
       if (!mover || !mover.isAlive) throw new Error("Invalid character");
 
       const myTeam = getTeamForCharacter(state, charId);
-      if (myTeam?.ownerId !== playerId) throw new Error("Not your character");
+      if (myTeam?.ownerId !== playerToken) throw new Error("Not your character");
 
-      // "ONE" die: only one character may move this turn
       if (whoMoves === "ONE") {
         const alreadyMoved = Object.keys(state.characterMovesUsed).filter(
           (id) => id !== charId && (state.characterMovesUsed[id] ?? 0) > 0
@@ -192,7 +200,6 @@ function handleAction(state: GameState, playerId: string, action: ActionPayload)
         if (alreadyMoved.length > 0) throw new Error("Only one character may move on this roll");
       }
 
-      // Check remaining steps for this character
       const stepsUsed = state.characterMovesUsed[charId] ?? 0;
       const stepsRemaining = moveCount - stepsUsed;
       if (action.path.length > stepsRemaining) {
@@ -201,26 +208,16 @@ function handleAction(state: GameState, playerId: string, action: ActionPayload)
 
       const enemyIds = new Set(
         state.teams
-          .filter((t) => t.ownerId !== playerId)
+          .filter((t) => t.ownerId !== playerToken)
           .flatMap((t) => [t.majorCharacter.id, ...t.minorCharacters.map((m) => m.id)])
       );
 
-      const valid = validatePath(
-        state.board,
-        allChars,
-        charId,
-        action.path,
-        stepsRemaining,
-        (id) => enemyIds.has(id)
-      );
-
+      const valid = validatePath(state.board, allChars, charId, action.path, stepsRemaining, (id) => enemyIds.has(id));
       if (!valid) throw new Error("Invalid move path");
 
       const dest = action.path[action.path.length - 1];
       mover.position = dest;
       state.characterMovesUsed[charId] = stepsUsed + action.path.length;
-
-      // Player must click Confirm Movement to end the move phase
       break;
     }
 
@@ -240,12 +237,9 @@ function handleAction(state: GameState, playerId: string, action: ActionPayload)
       if (!card) throw new Error("Card not in hand");
 
       if (card.type === "SPECIAL") {
-        // Apply special effect directly — no combat response needed
-        // TODO: expand as more special cards are defined
         activeTeam.hand = activeTeam.hand.filter((c) => c.id !== card.id);
         activeTeam.discardPile.push(card);
       } else {
-        // Combat card — need attacker + target
         if (!action.characterId || !action.targetId) throw new Error("Missing attacker/target");
 
         const allChars = getAllCharacters(state);
@@ -264,7 +258,6 @@ function handleAction(state: GameState, playerId: string, action: ActionPayload)
           resolved: false,
         };
         state.currentPhase = "COMBAT_RESPONSE";
-        // Do NOT decrement action yet — wait for combat resolution
         return state;
       }
 
@@ -282,14 +275,8 @@ function handleAction(state: GameState, playerId: string, action: ActionPayload)
       const card = activeTeam.hand.find((c) => c.id === action.cardId);
       if (!card) throw new Error("Card not in hand");
 
-      // Card must belong to a dead minor
-      const deadMinorIds = activeTeam.minorCharacters
-        .filter((m) => !m.isAlive)
-        .map((m) => m.id);
-
-      if (!deadMinorIds.includes(card.characterId)) {
-        throw new Error("Can only heal using a dead minor's card");
-      }
+      const deadMinorIds = activeTeam.minorCharacters.filter((m) => !m.isAlive).map((m) => m.id);
+      if (!deadMinorIds.includes(card.characterId)) throw new Error("Can only heal using a dead minor's card");
 
       const major = activeTeam.majorCharacter;
       major.currentHP = Math.min(major.currentHP + 1, major.maxHP);
@@ -306,17 +293,11 @@ function handleAction(state: GameState, playerId: string, action: ActionPayload)
 }
 
 function endTurn(state: GameState): GameState {
-  // Apply lava damage at end of turn
   state = applyLavaDamage(state);
 
   const winner = checkWinCondition(state);
-  if (winner) {
-    state.winner = winner;
-    state.gameOver = true;
-    return state;
-  }
+  if (winner) { state.winner = winner; state.gameOver = true; return state; }
 
-  // Advance to next team
   state.activeTeamIndex = (state.activeTeamIndex + 1) % state.teams.length;
   state.currentPhase = "ROLL";
   state.currentDieRoll = null;
@@ -324,10 +305,6 @@ function endTurn(state: GameState): GameState {
   state.pendingCombat = null;
   return state;
 }
-
-// Decrement action after combat resolves (called from defend handler)
-// Combat was initiated with a PLAY action — now count it
-io.on("connection", () => {}); // already set up above
 
 const PORT = process.env.PORT || 3001;
 server.listen(PORT, () => {

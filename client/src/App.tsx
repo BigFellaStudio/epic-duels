@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useRef } from "react";
-import { GameState, Card } from "@epic-duels/shared";
+import { GameState } from "@epic-duels/shared";
 import { useSocket } from "./hooks/useSocket";
 import Lobby from "./components/Lobby";
 import BoardView from "./components/BoardView";
@@ -20,30 +20,37 @@ export default function App() {
   const [myTeamId, setMyTeamId] = useState<string | null>(null);
   const [gameError, setGameError] = useState<string | null>(null);
 
-  // Selection state
   const [selectedCardId, setSelectedCardId] = useState<string | null>(null);
   const [selectedCharId, setSelectedCharId] = useState<string | null>(null);
   const [selectedTargetId, setSelectedTargetId] = useState<string | null>(null);
-  const [movePath, setMovePath] = useState<{ row: number; col: number }[]>([]);
 
-  const socketIdRef = useRef<string | undefined>(undefined);
+  // Keep a ref that always reflects current state values so socket handlers
+  // never read stale closures
+  const screenRef = useRef(screen);
+  screenRef.current = screen;
 
-  const { createRoom, joinRoom, sendAction, sendDefend, socketId } = useSocket({
-    onRoomCreated: (code) => setRoomCode(code),
-    onGameStart: (state, yourTeamId) => {
+  const handlersRef = useRef({
+    onRoomCreated: (code: string) => setRoomCode(code),
+    onGameStart: (state: GameState, yourTeamId: string) => {
       setGameState(state);
       setScreen("game");
       setMyTeamId(yourTeamId);
+      sessionStorage.setItem("epic-duels-room-code", state.roomCode);
     },
-    onStateUpdate: (state) => {
+    onStateUpdate: (state: GameState) => {
       setGameState(state);
       setSelectedCardId(null);
       setSelectedCharId(null);
       setSelectedTargetId(null);
-      setMovePath([]);
     },
-    onError: (msg) => {
-      if (screen === "game") {
+    onReconnected: (state: GameState, yourTeamId: string) => {
+      setGameState(state);
+      setScreen("game");
+      setMyTeamId(yourTeamId);
+      setRoomCode(state.roomCode);
+    },
+    onError: (msg: string) => {
+      if (screenRef.current === "game") {
         setGameError(msg);
         setTimeout(() => setGameError(null), 3000);
       } else {
@@ -51,6 +58,38 @@ export default function App() {
       }
     },
   });
+  // Keep handlers up to date on every render without recreating the socket
+  handlersRef.current = {
+    ...handlersRef.current,
+    onRoomCreated: (code: string) => setRoomCode(code),
+    onGameStart: (state: GameState, yourTeamId: string) => {
+      setGameState(state);
+      setScreen("game");
+      setMyTeamId(yourTeamId);
+    },
+    onStateUpdate: (state: GameState) => {
+      setGameState(state);
+      setSelectedCardId(null);
+      setSelectedCharId(null);
+      setSelectedTargetId(null);
+    },
+    onReconnected: (state: GameState, yourTeamId: string) => {
+      setGameState(state);
+      setScreen("game");
+      setMyTeamId(yourTeamId);
+      setRoomCode(state.roomCode);
+    },
+    onError: (msg: string) => {
+      if (screenRef.current === "game") {
+        setGameError(msg);
+        setTimeout(() => setGameError(null), 3000);
+      } else {
+        setError(msg);
+      }
+    },
+  };
+
+  const { createRoom, joinRoom, sendAction, sendDefend } = useSocket(handlersRef);
 
   const myTeam = gameState?.teams.find((t) => t.id === myTeamId) ?? null;
   const isMyTurn = gameState

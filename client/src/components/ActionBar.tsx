@@ -31,7 +31,9 @@ export default function ActionBar({
     return deadMinorIds.includes(card.characterId);
   })();
 
-  const canPlay = !!selectedCardId && !!selectedCharId;
+  const selectedCard = myTeam?.hand.find((c) => c.id === selectedCardId) ?? null;
+  const isCombatCard = selectedCard?.type === "BASIC_COMBAT" || selectedCard?.type === "POWER_COMBAT";
+  const canPlay = !!selectedCardId && !!selectedCharId && (!isCombatCard || !!selectedTargetId);
   const canPlayCombat = canPlay && !!selectedTargetId;
 
   return (
@@ -74,7 +76,7 @@ export default function ActionBar({
           <>
             <button style={btn("#2980b9")} onClick={onDraw}>Draw Card</button>
             <button style={btn("#8e44ad")} onClick={onPlayCard} disabled={!canPlay}>
-              Play Card {!canPlayCombat && canPlay ? "(select target)" : ""}
+              {isCombatCard && !selectedTargetId ? "Click enemy to target" : "Play Card"}
             </button>
             <button style={btn("#27ae60")} onClick={onHeal} disabled={!canHeal}>
               Heal (+1 HP)
