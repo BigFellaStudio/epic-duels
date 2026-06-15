@@ -6,7 +6,7 @@ const SERVER_URL = import.meta.env.VITE_SERVER_URL || "http://localhost:3001";
 
 interface SocketHandlers {
   onRoomCreated?: (roomCode: string) => void;
-  onGameStart?: (gameState: GameState) => void;
+  onGameStart?: (gameState: GameState, yourTeamId: string) => void;
   onStateUpdate?: (gameState: GameState) => void;
   onError?: (message: string) => void;
 }
@@ -21,8 +21,8 @@ export function useSocket(handlers: SocketHandlers) {
     socket.on("room_created", ({ roomCode }: { roomCode: string }) => {
       handlers.onRoomCreated?.(roomCode);
     });
-    socket.on("game_start", ({ gameState }: { gameState: GameState }) => {
-      handlers.onGameStart?.(gameState);
+    socket.on("game_start", ({ gameState, yourTeamId }: { gameState: GameState; yourTeamId: string }) => {
+      handlers.onGameStart?.(gameState, yourTeamId);
     });
     socket.on("state_update", ({ gameState }: { gameState: GameState }) => {
       handlers.onStateUpdate?.(gameState);

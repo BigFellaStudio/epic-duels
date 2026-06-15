@@ -30,13 +30,10 @@ export default function App() {
 
   const { createRoom, joinRoom, sendAction, sendDefend, socketId } = useSocket({
     onRoomCreated: (code) => setRoomCode(code),
-    onGameStart: (state) => {
+    onGameStart: (state, yourTeamId) => {
       setGameState(state);
       setScreen("game");
-      // Determine which team is mine by matching socket ID to ownerId
-      const sid = socketId();
-      const myTeam = state.teams.find((t) => t.ownerId === sid);
-      setMyTeamId(myTeam?.id ?? state.teams[0].id);
+      setMyTeamId(yourTeamId);
     },
     onStateUpdate: (state) => {
       setGameState(state);

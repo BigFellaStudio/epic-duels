@@ -54,7 +54,14 @@ io.on("connection", (socket) => {
       return;
     }
     socket.join(roomCode);
-    io.to(roomCode).emit("game_start", { gameState: result.gameState });
+    // Tell each player which team they control
+    const state = result.gameState!;
+    for (const team of state.teams) {
+      io.to(team.ownerId).emit("game_start", {
+        gameState: state,
+        yourTeamId: team.id,
+      });
+    }
   });
 
   socket.on("action", ({ roomCode, action }: { roomCode: string; action: ActionPayload }) => {

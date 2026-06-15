@@ -2,13 +2,14 @@ import { GameState, Team, Character, Player } from "../../shared/src/types";
 import { LoadedDeck } from "./deckLoader";
 import { getBoardById } from "./boards";
 
+// Die faces in order of value: 2All, 3, 3All, 4, 4All, 5
 const DIE_FACES = [
-  { label: "1",     moveCount: 1, whoMoves: "ONE" as const },
-  { label: "2",     moveCount: 2, whoMoves: "ONE" as const },
-  { label: "3",     moveCount: 3, whoMoves: "ONE" as const },
   { label: "All 2", moveCount: 2, whoMoves: "ALL" as const },
+  { label: "3",     moveCount: 3, whoMoves: "ONE" as const },
   { label: "All 3", moveCount: 3, whoMoves: "ALL" as const },
+  { label: "4",     moveCount: 4, whoMoves: "ONE" as const },
   { label: "All 4", moveCount: 4, whoMoves: "ALL" as const },
+  { label: "5",     moveCount: 5, whoMoves: "ONE" as const },
 ];
 
 export function rollDie() {
