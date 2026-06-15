@@ -1,0 +1,12 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "client",
+      "runtimeExecutable": "/opt/homebrew/bin/node",
+      "runtimeArgs": ["/Users/philip/Documents/Claude/Duels/node_modules/.bin/vite", "/Users/philip/Documents/Claude/Duels/client", "--host"],
+      "port": 5173,
+      "autoPort": false
+    }
+  ]
+}
