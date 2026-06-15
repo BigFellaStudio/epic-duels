@@ -121,12 +121,30 @@ function handleAction(state: GameState, playerId: string, action: ActionPayload)
       state.currentDieRoll = rollDie();
       state.currentPhase = "MOVE";
       state.characterMovesUsed = {};
+      // Snapshot all character positions so RESET_MOVE can restore them
+      const allCharsSnap = getAllCharacters(state);
+      state.preMovePositions = Object.fromEntries(
+        allCharsSnap.map((c) => [c.id, c.position ? { ...c.position } : null])
+      );
       break;
     }
 
     case "SKIP_MOVE": {
       if (state.currentPhase !== "MOVE") throw new Error("Not in move phase");
       state.currentPhase = "ACTION";
+      state.characterMovesUsed = {};
+      state.preMovePositions = {};
+      break;
+    }
+
+    case "RESET_MOVE": {
+      if (state.currentPhase !== "MOVE") throw new Error("Not in move phase");
+      // Restore all characters to their pre-move positions
+      const allCharsReset = getAllCharacters(state);
+      for (const char of allCharsReset) {
+        const saved = state.preMovePositions[char.id];
+        if (saved !== undefined) char.position = saved;
+      }
       state.characterMovesUsed = {};
       break;
     }

@@ -269,7 +269,8 @@ export default function App() {
               selectedCharId={selectedCharId}
               selectedTargetId={selectedTargetId}
               onRoll={() => sendAction(roomCode!, { type: "ROLL" })}
-              onSkipMove={() => sendAction(roomCode!, { type: "SKIP_MOVE" })}
+              onConfirmMove={() => sendAction(roomCode!, { type: "SKIP_MOVE" })}
+              onResetMove={() => sendAction(roomCode!, { type: "RESET_MOVE" })}
               onDraw={() => sendAction(roomCode!, { type: "DRAW" })}
               onPlayCard={handlePlayCard}
               onHeal={() => {

@@ -140,5 +140,6 @@ export function initGameState(
     winner: null,
     gameOver: false,
     characterMovesUsed: {},
+    preMovePositions: {},
   };
 }

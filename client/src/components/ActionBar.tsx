@@ -9,7 +9,8 @@ interface Props {
   selectedCharId: string | null;
   selectedTargetId: string | null;
   onRoll: () => void;
-  onSkipMove: () => void;
+  onConfirmMove: () => void;
+  onResetMove: () => void;
   onDraw: () => void;
   onPlayCard: () => void;
   onHeal: () => void;
@@ -17,7 +18,7 @@ interface Props {
 
 export default function ActionBar({
   gameState, myTeamId, isMyTurn, selectedCardId, selectedCharId, selectedTargetId,
-  onRoll, onSkipMove, onDraw, onPlayCard, onHeal,
+  onRoll, onConfirmMove, onResetMove, onDraw, onPlayCard, onHeal,
 }: Props) {
   const { currentPhase, currentDieRoll, actionsRemainingThisTurn } = gameState;
   const myTeam = gameState.teams.find((t) => t.id === myTeamId);
@@ -64,7 +65,8 @@ export default function ActionBar({
         {isMyTurn && currentPhase === "MOVE" && (
           <>
             <span style={styles.hint}>Click a character, then a highlighted cell to move.</span>
-            <button style={btn("#555")} onClick={onSkipMove}>Skip Movement</button>
+            <button style={btn("#27ae60")} onClick={onConfirmMove}>Confirm Movement</button>
+            <button style={btn("#7f3f00")} onClick={onResetMove}>Reset Movement</button>
           </>
         )}
 

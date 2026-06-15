@@ -8,7 +8,7 @@
   ],
   "cards": [
     {
-      "id": "vader_lightsaber_strike_1",
+      "id": "vader_lightsaber_strike",
       "name": "Lightsaber Strike",
       "type": "BASIC_COMBAT",
       "characterId": "darth_vader",
@@ -16,8 +16,32 @@
       "defendValue": 3,
       "specialEffect": null,
       "countsAsAction": true,
-      "description": "A powerful lightsaber strike.",
-      "quantity": 2
+      "description": "",
+      "quantity": 3
+    },
+    {
+      "id": "vader_deflect",
+      "name": "Deflect",
+      "type": "BASIC_COMBAT",
+      "characterId": "darth_vader",
+      "attackValue": 3,
+      "defendValue": 5,
+      "specialEffect": null,
+      "countsAsAction": true,
+      "description": "",
+      "quantity": 3
+    },
+    {
+      "id": "vader_force_choke",
+      "name": "Force Choke",
+      "type": "BASIC_COMBAT",
+      "characterId": "darth_vader",
+      "attackValue": 4,
+      "defendValue": 2,
+      "specialEffect": null,
+      "countsAsAction": true,
+      "description": "",
+      "quantity": 3
     },
     {
       "id": "vader_dark_side_drain",
@@ -33,7 +57,103 @@
       },
       "countsAsAction": true,
       "description": "Deal 4 damage and heal Vader for 4 HP.",
-      "quantity": 1
+      "quantity": 2
+    },
+    {
+      "id": "vader_saber_block",
+      "name": "Saber Block",
+      "type": "POWER_COMBAT",
+      "characterId": "darth_vader",
+      "attackValue": null,
+      "defendValue": 6,
+      "specialEffect": {
+        "type": "NO_DAMAGE_COUNTER",
+        "value": 1,
+        "targetType": "ANY_CHARACTER"
+      },
+      "countsAsAction": true,
+      "description": "Block up to 6 damage and deal 1 back.",
+      "quantity": 2
+    },
+    {
+      "id": "vader_force_push",
+      "name": "Force Push",
+      "type": "SPECIAL",
+      "characterId": "darth_vader",
+      "attackValue": null,
+      "defendValue": null,
+      "specialEffect": {
+        "type": "PUSH_CHARACTER",
+        "value": 2,
+        "targetType": "ANY_CHARACTER"
+      },
+      "countsAsAction": true,
+      "description": "Push an enemy character 2 spaces.",
+      "quantity": 2
+    },
+    {
+      "id": "vader_draw_power",
+      "name": "The Force Is Strong",
+      "type": "SPECIAL",
+      "characterId": "darth_vader",
+      "attackValue": null,
+      "defendValue": null,
+      "specialEffect": {
+        "type": "DRAW_CARDS",
+        "value": 2,
+        "targetType": "SELF"
+      },
+      "countsAsAction": true,
+      "description": "Draw 2 cards.",
+      "quantity": 2
+    },
+    {
+      "id": "stormtrooper_blast",
+      "name": "Blaster Shot",
+      "type": "BASIC_COMBAT",
+      "characterId": "stormtrooper_1",
+      "attackValue": 2,
+      "defendValue": 1,
+      "specialEffect": null,
+      "countsAsAction": true,
+      "description": "",
+      "quantity": 4
+    },
+    {
+      "id": "stormtrooper_cover_fire",
+      "name": "Cover Fire",
+      "type": "BASIC_COMBAT",
+      "characterId": "stormtrooper_1",
+      "attackValue": 1,
+      "defendValue": 2,
+      "specialEffect": null,
+      "countsAsAction": true,
+      "description": "",
+      "quantity": 3
+    },
+    {
+      "id": "stormtrooper2_blast",
+      "name": "Blaster Shot",
+      "type": "BASIC_COMBAT",
+      "characterId": "stormtrooper_2",
+      "attackValue": 2,
+      "defendValue": 1,
+      "specialEffect": null,
+      "countsAsAction": true,
+      "description": "",
+      "quantity": 4
+    },
+    {
+      "id": "stormtrooper2_cover_fire",
+      "name": "Cover Fire",
+      "type": "BASIC_COMBAT",
+      "characterId": "stormtrooper_2",
+      "attackValue": 1,
+      "defendValue": 2,
+      "specialEffect": null,
+      "countsAsAction": true,
+      "description": "",
+      "quantity": 3
     }
   ]
 }

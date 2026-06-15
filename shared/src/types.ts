@@ -118,11 +118,12 @@ export interface GameState {
   winner: string | null;
   gameOver: boolean;
   characterMovesUsed: Record<string, number>; // charId → steps used this turn
+  preMovePositions: Record<string, { row: number; col: number } | null>; // charId → position before move phase
 }
 
 // Socket event payloads
 export interface ActionPayload {
-  type: "ROLL" | "MOVE" | "DRAW" | "PLAY" | "HEAL" | "DEFEND" | "SKIP_MOVE";
+  type: "ROLL" | "MOVE" | "DRAW" | "PLAY" | "HEAL" | "DEFEND" | "SKIP_MOVE" | "RESET_MOVE";
   characterId?: string;
   path?: { row: number; col: number }[];
   cardId?: string;
