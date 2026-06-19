@@ -1,4 +1,4 @@
-import { BoardGrid, BoardState, CellType } from "../../shared/src/types";
+import { BoardGrid, BoardState, CellType } from "@epic-duels/shared";
 
 // Cell shorthand helpers
 const O: CellType = "OPEN";

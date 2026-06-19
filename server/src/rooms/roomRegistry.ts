@@ -1,5 +1,5 @@
 import { randomUUID } from "crypto";
-import { GameState, Player } from "../../shared/src/types";
+import { GameState, Player } from "@epic-duels/shared";
 import { initGameState } from "../engine/gameState";
 import { loadDeck } from "../engine/deckLoader";
 

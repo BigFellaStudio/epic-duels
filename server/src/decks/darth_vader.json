@@ -34,13 +34,15 @@
     {
       "id": "vader_force_choke",
       "name": "Force Choke",
-      "type": "BASIC_COMBAT",
+      "type": "POWER_COMBAT",
       "characterId": "darth_vader",
-      "attackValue": 4,
-      "defendValue": 2,
+      "attackValue": 3,
+      "defendValue": null,
+      "unblockable": true,
+      "ranged": true,
       "specialEffect": null,
       "countsAsAction": true,
-      "description": "",
+      "description": "Deal 3 unblockable damage to any character.",
       "quantity": 3
     },
     {
@@ -50,13 +52,14 @@
       "characterId": "darth_vader",
       "attackValue": 4,
       "defendValue": null,
+      "unblockable": true,
       "specialEffect": {
         "type": "STEAL_LIFE",
         "value": 4,
         "targetType": "ANY_CHARACTER"
       },
       "countsAsAction": true,
-      "description": "Deal 4 damage and heal Vader for 4 HP.",
+      "description": "Deal 4 unblockable damage and heal Vader for 4 HP.",
       "quantity": 2
     },
     {

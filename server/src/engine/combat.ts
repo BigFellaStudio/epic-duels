@@ -1,28 +1,24 @@
-import { GameState, Character, Card, Team } from "../../shared/src/types";
+import { GameState, Character, Card, Team } from "@epic-duels/shared";
 import { isAdjacent, hasLineOfSight } from "./movement";
 
 export function canAttack(
   gameState: GameState,
   attacker: Character,
-  target: Character
+  target: Character,
+  card?: { ranged?: boolean }
 ): boolean {
   if (!attacker.isAlive || !target.isAlive) return false;
   if (!attacker.position || !target.position) return false;
 
-  const allChars = getAllCharacters(gameState);
+  // Card-level ranged flag overrides character combatType
+  const isRanged = card?.ranged || attacker.combatType === "RANGED" || attacker.combatType === "BOTH";
 
-  if (attacker.combatType === "MELEE") {
+  if (!isRanged) {
     return isAdjacent(attacker.position, target.position);
   }
 
-  // RANGED or BOTH
-  return hasLineOfSight(
-    gameState.board,
-    attacker.position,
-    target.position,
-    allChars,
-    attacker.id
-  );
+  // Ranged — can attack any enemy with a position
+  return true;
 }
 
 export function resolveCombat(
@@ -33,7 +29,7 @@ export function resolveCombat(
   defenseCard: Card | null
 ): GameState {
   const atkVal = attackCard.attackValue ?? 0;
-  const defVal = defenseCard?.defendValue ?? 0;
+  const defVal = attackCard.unblockable ? 0 : (defenseCard?.defendValue ?? 0);
   const damage = Math.max(0, atkVal - defVal);
 
   target.currentHP = Math.max(0, target.currentHP - damage);
@@ -101,9 +97,26 @@ function applySpecialEffect(
     }
     case "DEAL_UNBLOCKABLE_DAMAGE": {
       target.currentHP = Math.max(0, target.currentHP - (effect.value ?? 0));
+      if (target.currentHP <= 0) gameState = eliminateCharacter(gameState, target);
       break;
     }
-    // TODO: Implement remaining effect types as cards are added
+    case "NO_DAMAGE_COUNTER": {
+      target.currentHP = Math.max(0, target.currentHP - (effect.value ?? 1));
+      if (target.currentHP <= 0) gameState = eliminateCharacter(gameState, target);
+      break;
+    }
+    case "DISCARD_OPPONENT_CARDS": {
+      const targetTeam = getTeamForCharacter(gameState, target.id);
+      if (targetTeam && targetTeam.hand.length > 0) {
+        const count = Math.min(effect.value ?? 1, targetTeam.hand.length);
+        for (let i = 0; i < count; i++) {
+          const idx = Math.floor(Math.random() * targetTeam.hand.length);
+          const [discarded] = targetTeam.hand.splice(idx, 1);
+          targetTeam.discardPile.push(discarded);
+        }
+      }
+      break;
+    }
     default:
       break;
   }

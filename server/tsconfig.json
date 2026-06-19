@@ -8,8 +8,9 @@
     "strict": true,
     "esModuleInterop": true,
     "resolveJsonModule": true,
+    "baseUrl": ".",
     "paths": {
-      "@epic-duels/shared": ["../shared/src/types.ts"]
+      "@epic-duels/shared": ["../shared/dist/types.d.ts"]
     }
   },
   "include": ["src/**/*"],

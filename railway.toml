@@ -1,0 +1,9 @@
+[build]
+builder = "NIXPACKS"
+buildCommand = "npm install && npm run build --workspace=server"
+
+[healthcheck]
+path = "/decks"
+
+[deploy]
+startCommand = "node server/dist/index.js"

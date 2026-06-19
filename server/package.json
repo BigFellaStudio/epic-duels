@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "scripts": {
     "dev": "tsx watch src/index.ts",
-    "build": "tsc",
+    "build": "tsc -p ../shared/tsconfig.json && tsc && cp -r src/decks dist/decks",
     "start": "node dist/index.js"
   },
   "dependencies": {

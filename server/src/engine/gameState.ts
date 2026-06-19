@@ -1,4 +1,4 @@
-import { GameState, Team, Character, Player } from "../../shared/src/types";
+import { GameState, Team, Character, Player } from "@epic-duels/shared";
 import { LoadedDeck } from "./deckLoader";
 import { getBoardById } from "./boards";
 
@@ -144,6 +144,7 @@ export function initGameState(
     board,
     actionsRemainingThisTurn: 2,
     pendingCombat: null,
+    pendingSpecialMove: null,
     winner: null,
     gameOver: false,
     characterMovesUsed: {},

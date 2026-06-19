@@ -11,14 +11,15 @@ import {
   reconnectPlayer,
   getTokenForSocket,
 } from "./rooms/roomRegistry";
-import { ActionPayload, GameState } from "../shared/src/types";
+import { ActionPayload, GameState } from "@epic-duels/shared";
 import { rollDie } from "./engine/gameState";
-import { validatePath } from "./engine/movement";
+import { validatePath, findPath } from "./engine/movement";
 import {
   getAllCharacters,
   getTeamForCharacter,
   canAttack,
   resolveCombat,
+  eliminateCharacter,
   drawCard,
   checkWinCondition,
   applyLavaDamage,
@@ -54,13 +55,22 @@ io.on("connection", (socket) => {
     }
     socket.join(roomCode);
     const state = result.gameState!;
-    // Tell each player which team they control, along with their stable token
-    for (const team of state.teams) {
-      const token = team.id === "team_0" ? result.hostToken! : result.token!;
-      io.to(team.ownerId).emit("game_start", {
+    const room = require("./rooms/roomRegistry").getRoom(roomCode);
+    // Emit to each player's current socket ID
+    const hostSocketId = room?.host?.socketId;
+    const guestSocketId = room?.guest?.socketId;
+    if (hostSocketId) {
+      io.to(hostSocketId).emit("game_start", {
         gameState: state,
-        yourTeamId: team.id,
-        playerToken: token,
+        yourTeamId: "team_0",
+        playerToken: result.hostToken!,
+      });
+    }
+    if (guestSocketId) {
+      io.to(guestSocketId).emit("game_start", {
+        gameState: state,
+        yourTeamId: "team_1",
+        playerToken: result.token!,
       });
     }
   });
@@ -167,6 +177,62 @@ function handleAction(state: GameState, playerToken: string, action: ActionPaylo
       break;
     }
 
+    case "PUSH_MOVE": {
+      if (state.currentPhase !== "PUSH" || !state.pendingSpecialMove) throw new Error("Not in push phase");
+      if (!action.path || action.path.length === 0) throw new Error("Missing push path");
+
+      const push = state.pendingSpecialMove;
+      const allCharsPush = getAllCharacters(state);
+      const pushMover = allCharsPush.find((c) => c.id === push.characterId);
+      if (!pushMover || !pushMover.isAlive) throw new Error("Push target is no longer valid");
+
+      const pushDest = action.path[action.path.length - 1];
+      const pushPath = action.path.length === 1
+        ? (findPath(state.board, allCharsPush, push.characterId, pushDest, push.stepsRemaining, () => false) ?? action.path)
+        : action.path;
+      if (pushPath.length > push.stepsRemaining) throw new Error(`Only ${push.stepsRemaining} step(s) remaining for push`);
+      if (!validatePath(state.board, allCharsPush, push.characterId, pushPath, push.stepsRemaining, () => false)) throw new Error("Invalid push path");
+
+      pushMover.position = pushPath[pushPath.length - 1];
+      state.pendingSpecialMove = null;
+      state.currentPhase = "ACTION";
+      state.actionsRemainingThisTurn--;
+
+      if (state.actionsRemainingThisTurn <= 0) state = endTurn(state);
+      break;
+    }
+
+    case "BONUS_MOVE": {
+      if (state.currentPhase !== "BONUS_MOVE" || !state.pendingSpecialMove) throw new Error("Not in bonus move phase");
+      if (!action.path || action.path.length === 0) throw new Error("Missing move path");
+
+      const bonus = state.pendingSpecialMove;
+      const allCharsBonus = getAllCharacters(state);
+      const bonusMover = allCharsBonus.find((c) => c.id === bonus.characterId);
+      if (!bonusMover || !bonusMover.isAlive) throw new Error("Character is no longer valid");
+
+      const bonusEnemyIds = new Set(
+        state.teams
+          .filter((t) => t.ownerId !== playerToken)
+          .flatMap((t) => [t.majorCharacter.id, ...t.minorCharacters.map((m) => m.id)])
+      );
+      const isEnemyBonus = (id: string) => bonusEnemyIds.has(id);
+      const bonusDest = action.path[action.path.length - 1];
+      const bonusPath = action.path.length === 1
+        ? (findPath(state.board, allCharsBonus, bonus.characterId, bonusDest, bonus.stepsRemaining, isEnemyBonus) ?? action.path)
+        : action.path;
+      if (bonusPath.length > bonus.stepsRemaining) throw new Error(`Only ${bonus.stepsRemaining} step(s) remaining`);
+      if (!validatePath(state.board, allCharsBonus, bonus.characterId, bonusPath, bonus.stepsRemaining, isEnemyBonus)) throw new Error("Invalid move path");
+
+      bonusMover.position = bonusPath[bonusPath.length - 1];
+      state.pendingSpecialMove = null;
+      state.currentPhase = "ACTION";
+      state.actionsRemainingThisTurn--;
+
+      if (state.actionsRemainingThisTurn <= 0) state = endTurn(state);
+      break;
+    }
+
     case "RESET_MOVE": {
       if (state.currentPhase !== "MOVE") throw new Error("Not in move phase");
       const allCharsReset = getAllCharacters(state);
@@ -211,13 +277,19 @@ function handleAction(state: GameState, playerToken: string, action: ActionPaylo
           .filter((t) => t.ownerId !== playerToken)
           .flatMap((t) => [t.majorCharacter.id, ...t.minorCharacters.map((m) => m.id)])
       );
+      const isEnemy = (id: string) => enemyIds.has(id);
 
-      const valid = validatePath(state.board, allChars, charId, action.path, stepsRemaining, (id) => enemyIds.has(id));
-      if (!valid) throw new Error("Invalid move path");
+      const rawDest = action.path[action.path.length - 1];
+      const resolvedPath = action.path.length === 1
+        ? (findPath(state.board, allChars, charId, rawDest, stepsRemaining, isEnemy) ?? action.path)
+        : action.path;
 
-      const dest = action.path[action.path.length - 1];
+      if (resolvedPath.length > stepsRemaining) throw new Error(`Only ${stepsRemaining} step(s) remaining for this character`);
+      if (!validatePath(state.board, allChars, charId, resolvedPath, stepsRemaining, isEnemy)) throw new Error("Invalid move path");
+
+      const dest = resolvedPath[resolvedPath.length - 1];
       mover.position = dest;
-      state.characterMovesUsed[charId] = stepsUsed + action.path.length;
+      state.characterMovesUsed[charId] = stepsUsed + resolvedPath.length;
       break;
     }
 
@@ -237,8 +309,66 @@ function handleAction(state: GameState, playerToken: string, action: ActionPaylo
       if (!card) throw new Error("Card not in hand");
 
       if (card.type === "SPECIAL") {
+        const effect = card.specialEffect;
+
+        if (effect?.type === "PUSH_CHARACTER") {
+          if (!action.targetId) throw new Error("Force Push requires a target");
+          const allChars = getAllCharacters(state);
+          const pushTarget = allChars.find((c) => c.id === action.targetId);
+          if (!pushTarget || !pushTarget.isAlive) throw new Error("Invalid push target");
+          const targetTeam = getTeamForCharacter(state, pushTarget.id);
+          if (targetTeam?.ownerId === playerToken) throw new Error("Cannot push your own character");
+
+          activeTeam.hand = activeTeam.hand.filter((c) => c.id !== card.id);
+          activeTeam.discardPile.push(card);
+          state.pendingSpecialMove = { type: "PUSH", characterId: pushTarget.id, stepsRemaining: effect.value ?? 2 };
+          state.currentPhase = "PUSH";
+          return state;
+        }
+
+        if (effect?.type === "EXTRA_MOVEMENT") {
+          if (!action.characterId) throw new Error("Wookiee Charge requires a character");
+          const allChars = getAllCharacters(state);
+          const charToMove = allChars.find((c) => c.id === action.characterId);
+          if (!charToMove || !charToMove.isAlive) throw new Error("Invalid character");
+          const charTeam = getTeamForCharacter(state, charToMove.id);
+          if (charTeam?.ownerId !== playerToken) throw new Error("Not your character");
+
+          activeTeam.hand = activeTeam.hand.filter((c) => c.id !== card.id);
+          activeTeam.discardPile.push(card);
+          state.pendingSpecialMove = { type: "BONUS_MOVE", characterId: charToMove.id, stepsRemaining: effect.value ?? 3 };
+          state.currentPhase = "BONUS_MOVE";
+          return state;
+        }
+
+        if (effect?.type === "DEAL_UNBLOCKABLE_DAMAGE") {
+          if (!action.targetId) throw new Error("Shoot First requires a target");
+          const allChars = getAllCharacters(state);
+          const dmgTarget = allChars.find((c) => c.id === action.targetId);
+          if (!dmgTarget || !dmgTarget.isAlive) throw new Error("Invalid target");
+          const dmgTargetTeam = getTeamForCharacter(state, dmgTarget.id);
+          if (dmgTargetTeam?.ownerId === playerToken) throw new Error("Cannot target your own character");
+
+          dmgTarget.currentHP = Math.max(0, dmgTarget.currentHP - (effect.value ?? 0));
+          if (dmgTarget.currentHP <= 0) {
+            state = eliminateCharacter(state, dmgTarget);
+            const winner = checkWinCondition(state);
+            if (winner) { state.winner = winner; state.gameOver = true; }
+          }
+        }
+
+        // Remove card from hand BEFORE drawing so it doesn't count toward the 10-card limit
         activeTeam.hand = activeTeam.hand.filter((c) => c.id !== card.id);
         activeTeam.discardPile.push(card);
+
+        if (effect?.type === "DRAW_CARDS") {
+          for (let i = 0; i < (effect.value ?? 1); i++) drawCard(state, activeTeam);
+        }
+
+        if (effect?.type === "HEAL_SELF") {
+          const major = activeTeam.majorCharacter;
+          major.currentHP = Math.min(major.currentHP + (effect.value ?? 0), major.maxHP);
+        }
       } else {
         if (!action.characterId || !action.targetId) throw new Error("Missing attacker/target");
 
@@ -248,7 +378,7 @@ function handleAction(state: GameState, playerToken: string, action: ActionPaylo
 
         if (!attacker || !target) throw new Error("Invalid attacker/target");
         if (card.characterId !== attacker.id) throw new Error("Card does not match attacker");
-        if (!canAttack(state, attacker, target)) throw new Error("Attack not valid");
+        if (!canAttack(state, attacker, target, card)) throw new Error("Attack not valid");
 
         state.pendingCombat = {
           attackerId: attacker.id,
@@ -303,6 +433,7 @@ function endTurn(state: GameState): GameState {
   state.currentDieRoll = null;
   state.actionsRemainingThisTurn = 2;
   state.pendingCombat = null;
+  state.pendingSpecialMove = null;
   return state;
 }
 

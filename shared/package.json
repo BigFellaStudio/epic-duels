@@ -2,5 +2,11 @@
   "name": "@epic-duels/shared",
   "version": "1.0.0",
   "main": "src/types.ts",
-  "scripts": {}
+  "types": "dist/types.d.ts",
+  "scripts": {
+    "build": "tsc"
+  },
+  "devDependencies": {
+    "typescript": "^5.3.3"
+  }
 }

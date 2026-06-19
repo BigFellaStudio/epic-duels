@@ -27,11 +27,11 @@ export default function CharacterPanel({ team, label, color, isActive }: Props) 
 
       {team.minorCharacters.map((minor) => (
         <div key={minor.id} style={{ ...styles.charRow, opacity: minor.isAlive ? 1 : 0.4 }}>
-          <span style={{ ...styles.charName, fontSize: 12 }}>
+          <span style={{ ...styles.charName, fontSize: 13 }}>
             {minor.name} {!minor.isAlive && "(dead)"}
           </span>
           <HpBar current={minor.currentHP} max={minor.maxHP} color={minor.isAlive ? color : "#555"} />
-          <span style={{ ...styles.hp, fontSize: 12 }}>{minor.currentHP}/{minor.maxHP}</span>
+          <span style={{ ...styles.hp, fontSize: 13 }}>{minor.currentHP}/{minor.maxHP}</span>
         </div>
       ))}
 
@@ -56,20 +56,20 @@ function HpBar({ current, max, color }: { current: number; max: number; color: s
 const styles: Record<string, React.CSSProperties> = {
   panel: {
     background: "#12121e", border: "2px solid #333", borderRadius: 8,
-    padding: 12, display: "flex", flexDirection: "column", gap: 8, minWidth: 220,
+    padding: 14, display: "flex", flexDirection: "column", gap: 10,
   },
   header: { display: "flex", alignItems: "center", gap: 8 },
-  dot: { width: 12, height: 12, borderRadius: "50%", flexShrink: 0 },
-  label: { fontWeight: 700, fontSize: 13, color: "#ccc", flex: 1 },
+  dot: { width: 14, height: 14, borderRadius: "50%", flexShrink: 0 },
+  label: { fontWeight: 700, fontSize: 15, color: "#ccc", flex: 1 },
   activeBadge: {
-    background: "#ffe81f", color: "#000", fontSize: 10, fontWeight: 900,
-    padding: "2px 6px", borderRadius: 4,
+    background: "#ffe81f", color: "#000", fontSize: 11, fontWeight: 900,
+    padding: "2px 8px", borderRadius: 4,
   },
   charRow: { display: "flex", alignItems: "center", gap: 8 },
-  charName: { fontSize: 13, fontWeight: 600, minWidth: 80, flex: 1 },
-  hp: { fontSize: 13, fontWeight: 700, minWidth: 36, textAlign: "right" },
-  hpBarBg: { flex: 1, height: 8, background: "#2a2a3e", borderRadius: 4, overflow: "hidden" },
+  charName: { fontSize: 15, fontWeight: 600, minWidth: 80, flex: 1 },
+  hp: { fontSize: 15, fontWeight: 700, minWidth: 40, textAlign: "right" },
+  hpBarBg: { flex: 1, height: 10, background: "#2a2a3e", borderRadius: 4, overflow: "hidden" },
   hpBarFill: { height: "100%", borderRadius: 4, transition: "width 0.3s" },
-  footer: { display: "flex", gap: 12, borderTop: "1px solid #222", paddingTop: 6, marginTop: 4 },
-  stat: { fontSize: 11, color: "#777" },
+  footer: { display: "flex", gap: 12, borderTop: "1px solid #222", paddingTop: 8, marginTop: 2 },
+  stat: { fontSize: 13, color: "#777" },
 };

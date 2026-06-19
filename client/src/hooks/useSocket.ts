@@ -6,7 +6,7 @@ const SERVER_URL = import.meta.env.VITE_SERVER_URL || "http://localhost:3001";
 const TOKEN_KEY = "epic-duels-player-token";
 const ROOM_KEY = "epic-duels-room-code";
 
-interface SocketHandlers {
+export interface SocketHandlers {
   onRoomCreated?: (roomCode: string) => void;
   onGameStart?: (gameState: GameState, yourTeamId: string) => void;
   onStateUpdate?: (gameState: GameState) => void;

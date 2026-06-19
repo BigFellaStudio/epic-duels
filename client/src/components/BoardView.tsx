@@ -11,27 +11,39 @@ interface Props {
   onCharacterClick: (charId: string) => void;
 }
 
-const CELL_SIZE = 52;
+const CELL_SIZE = 56;
 
-const CELL_COLORS: Record<string, string> = {
-  OPEN: "#1a1a2e",
-  STARTING_MAJOR: "#1e1e3a",
-  OBSTACLE: "#3d2b1f",
-  WATER: "#0d2b4a",
-  MIST: "#1a2a2a",
-  LAVA: "#3d0a00",
-  VOID: "transparent",
+const CELL_BG: Record<string, string> = {
+  OPEN:          "#16162a",
+  STARTING_MAJOR:"#1c1c3c",
+  OBSTACLE:      "#2e1f10",
+  WATER:         "#0a2040",
+  MIST:          "#141f1f",
+  LAVA:          "#2e0800",
+  VOID:          "transparent",
 };
 
 const CELL_BORDER: Record<string, string> = {
-  OPEN: "#252540",
-  STARTING_MAJOR: "#3a3a6a",
-  OBSTACLE: "#5a3a22",
-  WATER: "#1a4a6a",
-  MIST: "#2a4a4a",
-  LAVA: "#8b1a00",
-  VOID: "transparent",
+  OPEN:          "#35355a",
+  STARTING_MAJOR:"#5050a0",
+  OBSTACLE:      "#6b4828",
+  WATER:         "#1f6090",
+  MIST:          "#3a5a5a",
+  LAVA:          "#c02000",
+  VOID:          "transparent",
 };
+
+// Map character name → public image path
+function charImage(name: string): string | null {
+  const n = name.toLowerCase();
+  if (n.includes("vader"))       return "/Vader.jpeg";
+  if (n.includes("stormtrooper")) return "/Stormtrooper.jpg";
+  if (n.includes("han"))         return "/Han.jpeg";
+  if (n.includes("chewbacca") || n.includes("chewy") || n.includes("chewwy")) return "/Chewwy.jpeg";
+  return null;
+}
+
+export { charImage };
 
 export default function BoardView({
   board, teams, myTeamId, selectedCharId, validMoveTargets, onCellClick, onCharacterClick,
@@ -57,11 +69,11 @@ export default function BoardView({
         style={{
           display: "grid",
           gridTemplateColumns: `repeat(${board.grid[0].length}, ${CELL_SIZE}px)`,
-          gap: 2,
-          padding: 8,
-          background: "#0a0a0f",
-          borderRadius: 8,
-          border: "1px solid #222",
+          gap: 3,
+          padding: 10,
+          background: "#080812",
+          borderRadius: 10,
+          border: "1px solid #333",
         }}
       >
         {board.grid.map((row, r) =>
@@ -77,29 +89,29 @@ export default function BoardView({
                 style={{
                   width: CELL_SIZE,
                   height: CELL_SIZE,
-                  background: isTarget ? "#1a3a1a" : CELL_COLORS[cell.type] ?? "#1a1a2e",
-                  border: `1px solid ${isTarget ? "#4aff4a" : CELL_BORDER[cell.type] ?? "#333"}`,
-                  borderRadius: 4,
+                  background: isTarget ? "#0f2e0f" : CELL_BG[cell.type] ?? "#16162a",
+                  border: `2px solid ${isTarget ? "#4aff4a" : CELL_BORDER[cell.type] ?? "#35355a"}`,
+                  borderRadius: 5,
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
                   cursor: isVoid ? "default" : "pointer",
                   position: "relative",
                   transition: "background 0.15s",
-                  boxShadow: isTarget ? "0 0 6px #4aff4a66" : undefined,
+                  boxShadow: isTarget ? "inset 0 0 8px #4aff4a44" : undefined,
                 }}
               >
                 {cell.type === "LAVA" && !char && (
-                  <span style={{ fontSize: 18, opacity: 0.6 }}>🌋</span>
+                  <span style={{ fontSize: 20, opacity: 0.7 }}>🌋</span>
                 )}
                 {cell.type === "OBSTACLE" && (
-                  <span style={{ fontSize: 16, opacity: 0.5 }}>█</span>
+                  <span style={{ fontSize: 18, opacity: 0.6 }}>█</span>
                 )}
                 {cell.type === "WATER" && !char && (
-                  <span style={{ fontSize: 16, opacity: 0.5 }}>〰</span>
+                  <span style={{ fontSize: 18, opacity: 0.5 }}>〰</span>
                 )}
                 {cell.type === "MIST" && !char && (
-                  <span style={{ fontSize: 16, opacity: 0.4 }}>░</span>
+                  <span style={{ fontSize: 18, opacity: 0.4 }}>░</span>
                 )}
                 {char && (
                   <CharToken
@@ -127,27 +139,45 @@ function CharToken({
   onClick: (e: React.MouseEvent) => void;
 }) {
   const isMajor = char.role === "MAJOR";
+  const size = isMajor ? 44 : 32;
+  const img = charImage(char.name);
 
   return (
     <div
       onClick={onClick}
       title={`${char.name} (${char.currentHP}/${char.maxHP} HP)`}
       style={{
-        width: isMajor ? 36 : 28,
-        height: isMajor ? 36 : 28,
-        background: color,
-        border: `2px solid ${isSelected ? "#ffe81f" : "#fff3"}`,
-        borderRadius: isMajor ? "50%" : 0,
-        clipPath: isMajor ? undefined : "polygon(50% 0%, 0% 100%, 100% 100%)",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
+        width: size,
+        height: size,
+        borderRadius: "50%",
+        border: `3px solid ${isSelected ? "#ffe81f" : color}`,
+        overflow: "hidden",
         cursor: "pointer",
-        boxShadow: isSelected ? `0 0 10px #ffe81f` : `0 0 4px ${color}88`,
+        boxShadow: isSelected
+          ? `0 0 12px #ffe81f, 0 0 4px ${color}`
+          : `0 0 6px ${color}aa`,
         transition: "box-shadow 0.15s",
-        position: "relative",
-        zIndex: 1,
+        flexShrink: 0,
+        background: color + "44",
       }}
-    />
+    >
+      {img ? (
+        <img
+          src={img}
+          alt={char.name}
+          style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "center top", display: "block" }}
+          draggable={false}
+        />
+      ) : (
+        <div style={{
+          width: "100%", height: "100%",
+          background: color,
+          display: "flex", alignItems: "center", justifyContent: "center",
+          fontSize: isMajor ? 18 : 13, fontWeight: 900, color: "#fff",
+        }}>
+          {char.name[0]}
+        </div>
+      )}
+    </div>
   );
 }

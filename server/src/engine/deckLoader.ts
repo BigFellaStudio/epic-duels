@@ -1,6 +1,6 @@
 import fs from "fs";
 import path from "path";
-import { Card, Character } from "../../shared/src/types";
+import { Card, Character } from "@epic-duels/shared";
 
 interface DeckCardRaw {
   id: string;
@@ -10,6 +10,8 @@ interface DeckCardRaw {
   attackValue: number | null;
   defendValue: number | null;
   specialEffect: Card["specialEffect"];
+  unblockable?: boolean;
+  ranged?: boolean;
   countsAsAction: boolean;
   description: string;
   quantity: number;
@@ -44,6 +46,8 @@ function expandCards(deckId: string, raw: DeckCardRaw[]): Card[] {
         attackValue: template.attackValue,
         defendValue: template.defendValue,
         specialEffect: template.specialEffect,
+        unblockable: template.unblockable ?? false,
+        ranged: template.ranged ?? false,
         countsAsAction: template.countsAsAction,
         description: template.description,
       });

@@ -1,12 +1,13 @@
 import React, { useState, useCallback, useRef } from "react";
 import { GameState } from "@epic-duels/shared";
-import { useSocket } from "./hooks/useSocket";
+import { useSocket, SocketHandlers } from "./hooks/useSocket";
 import Lobby from "./components/Lobby";
 import BoardView from "./components/BoardView";
 import HandView from "./components/HandView";
 import CharacterPanel from "./components/CharacterPanel";
 import ActionBar from "./components/ActionBar";
 import CombatModal from "./components/CombatModal";
+import GameLog, { LogEntry } from "./components/GameLog";
 
 type Screen = "lobby" | "game";
 
@@ -20,6 +21,15 @@ export default function App() {
   const [myTeamId, setMyTeamId] = useState<string | null>(null);
   const [gameError, setGameError] = useState<string | null>(null);
 
+  const [log, setLog] = useState<LogEntry[]>([]);
+  const logIdRef = useRef(0);
+
+  const addLog = useCallback((type: LogEntry["type"], message: string) => {
+    const now = new Date();
+    const timestamp = `${now.getHours().toString().padStart(2,"0")}:${now.getMinutes().toString().padStart(2,"0")}:${now.getSeconds().toString().padStart(2,"0")}`;
+    setLog((prev) => [...prev.slice(-99), { id: logIdRef.current++, type, message, timestamp }]);
+  }, []);
+
   const [selectedCardId, setSelectedCardId] = useState<string | null>(null);
   const [selectedCharId, setSelectedCharId] = useState<string | null>(null);
   const [selectedTargetId, setSelectedTargetId] = useState<string | null>(null);
@@ -29,46 +39,88 @@ export default function App() {
   const screenRef = useRef(screen);
   screenRef.current = screen;
 
-  const handlersRef = useRef({
-    onRoomCreated: (code: string) => setRoomCode(code),
-    onGameStart: (state: GameState, yourTeamId: string) => {
-      setGameState(state);
-      setScreen("game");
-      setMyTeamId(yourTeamId);
-      sessionStorage.setItem("epic-duels-room-code", state.roomCode);
-    },
-    onStateUpdate: (state: GameState) => {
-      setGameState(state);
-      setSelectedCardId(null);
-      setSelectedCharId(null);
-      setSelectedTargetId(null);
-    },
-    onReconnected: (state: GameState, yourTeamId: string) => {
-      setGameState(state);
-      setScreen("game");
-      setMyTeamId(yourTeamId);
-      setRoomCode(state.roomCode);
-    },
-    onError: (msg: string) => {
-      if (screenRef.current === "game") {
-        setGameError(msg);
-        setTimeout(() => setGameError(null), 3000);
-      } else {
-        setError(msg);
-      }
-    },
-  });
-  // Keep handlers up to date on every render without recreating the socket
+  const handlersRef = useRef<SocketHandlers>({});
+  // Overwrite every render so handlers always close over current state
   handlersRef.current = {
-    ...handlersRef.current,
     onRoomCreated: (code: string) => setRoomCode(code),
     onGameStart: (state: GameState, yourTeamId: string) => {
       setGameState(state);
       setScreen("game");
       setMyTeamId(yourTeamId);
+      setRoomCode(state.roomCode);
+      addLog("system", "Game started!");
     },
     onStateUpdate: (state: GameState) => {
-      setGameState(state);
+      setGameState((prev) => {
+        if (prev) {
+          const prevPhase = prev.currentPhase;
+          const nextPhase = state.currentPhase;
+          const activeTeam = state.teams[state.activeTeamIndex];
+          if (prevPhase !== nextPhase || prev.activeTeamIndex !== state.activeTeamIndex) {
+            addLog("system", `Turn: ${activeTeam?.id ?? "?"} | Phase: ${nextPhase}`);
+          }
+          if (state.pendingCombat && !prev.pendingCombat) {
+            const allChars = state.teams.flatMap((t) => [t.majorCharacter, ...t.minorCharacters]);
+            const atk = allChars.find((c) => c.id === state.pendingCombat!.attackerId);
+            const tgt = allChars.find((c) => c.id === state.pendingCombat!.targetId);
+            const card = state.pendingCombat!.attackCard;
+            addLog("combat", `${atk?.name ?? "?"} attacks ${tgt?.name ?? "?"} with ${card.name} (${card.attackValue} ATK)`);
+          }
+          if (!state.pendingCombat && prev.pendingCombat) {
+            // Log combat resolution details
+            const allChars = state.teams.flatMap((t) => [t.majorCharacter, ...t.minorCharacters]);
+            const prevAllChars = prev.teams.flatMap((t) => [t.majorCharacter, ...t.minorCharacters]);
+            const defCard = prev.pendingCombat.defenseCard;
+            if (defCard) addLog("combat", `Defense: ${defCard.name} (${defCard.defendValue} DEF)`);
+            for (const char of allChars) {
+              const prevChar = prevAllChars.find((c) => c.id === char.id);
+              if (prevChar && prevChar.currentHP !== char.currentHP) {
+                const delta = prevChar.currentHP - char.currentHP;
+                if (delta > 0) addLog("combat", `${char.name} took ${delta} damage (${char.currentHP}/${char.maxHP} HP)`);
+                if (delta < 0) addLog("combat", `${char.name} healed ${-delta} HP (${char.currentHP}/${char.maxHP} HP)`);
+              }
+              if (prevChar?.isAlive && !char.isAlive) {
+                addLog("combat", `💀 ${char.name} was eliminated!`);
+              }
+            }
+            // Log forced discards
+            for (const team of state.teams) {
+              const prevTeam = prev.teams.find((t) => t.id === team.id);
+              if (prevTeam && team.hand.length < prevTeam.hand.length) {
+                const discardCount = prevTeam.hand.length - team.hand.length;
+                const isOpponent = team.id !== myTeamId;
+                addLog("combat", `${isOpponent ? "Opponent" : "You"} discarded ${discardCount} card${discardCount > 1 ? "s" : ""}`);
+              }
+            }
+          }
+          // Log HP changes from special effects outside combat (e.g. Shoot First, Chewbacca's Care)
+          if (!state.pendingCombat && !prev.pendingCombat) {
+            const allChars = state.teams.flatMap((t) => [t.majorCharacter, ...t.minorCharacters]);
+            const prevAllChars = prev.teams.flatMap((t) => [t.majorCharacter, ...t.minorCharacters]);
+            for (const char of allChars) {
+              const prevChar = prevAllChars.find((c) => c.id === char.id);
+              if (prevChar && prevChar.currentHP !== char.currentHP) {
+                const delta = prevChar.currentHP - char.currentHP;
+                if (delta > 0) addLog("combat", `${char.name} took ${delta} damage (${char.currentHP}/${char.maxHP} HP)`);
+                if (delta < 0) addLog("combat", `${char.name} healed ${-delta} HP (${char.currentHP}/${char.maxHP} HP)`);
+              }
+              if (prevChar?.isAlive && !char.isAlive) {
+                addLog("combat", `💀 ${char.name} was eliminated!`);
+              }
+            }
+          }
+          if (state.pendingSpecialMove && !prev.pendingSpecialMove) {
+            const sm = state.pendingSpecialMove;
+            const smChar = state.teams.flatMap((t) => [t.majorCharacter, ...t.minorCharacters]).find((c) => c.id === sm.characterId);
+            if (sm.type === "PUSH") {
+              addLog("action", `Force Push: select where to push ${smChar?.name ?? "enemy"} (${sm.stepsRemaining} steps)`);
+            } else {
+              addLog("action", `${smChar?.name ?? "Character"} gets ${sm.stepsRemaining} bonus movement steps — click a destination.`);
+            }
+          }
+        }
+        return state;
+      });
       setSelectedCardId(null);
       setSelectedCharId(null);
       setSelectedTargetId(null);
@@ -78,8 +130,10 @@ export default function App() {
       setScreen("game");
       setMyTeamId(yourTeamId);
       setRoomCode(state.roomCode);
+      addLog("system", "Reconnected to game.");
     },
     onError: (msg: string) => {
+      addLog("error", `Error: ${msg}`);
       if (screenRef.current === "game") {
         setGameError(msg);
         setTimeout(() => setGameError(null), 3000);
@@ -100,48 +154,31 @@ export default function App() {
     ? gameState.teams.flatMap((t) => [t.majorCharacter, ...t.minorCharacters])
     : [];
 
-  // Compute valid move destinations (simple: all reachable open cells within die roll)
-  const validMoveTargets = (() => {
-    if (!gameState || !isMyTurn || gameState.currentPhase !== "MOVE" || !selectedCharId) return [];
-    const char = allChars.find((c) => c.id === selectedCharId);
-    if (!char || !char.position || !gameState.currentDieRoll) return [];
-    const stepsUsed = gameState.characterMovesUsed[selectedCharId] ?? 0;
-    const maxSteps = gameState.currentDieRoll.moveCount - stepsUsed;
-    if (maxSteps <= 0) return [];
+  // BFS helper — returns reachable empty cells within maxSteps for a given character
+  const bfsReachable = (charId: string, maxSteps: number, canPassThrough: (occupantTeamId: string) => boolean) => {
+    if (!gameState) return [];
+    const char = allChars.find((c) => c.id === charId);
+    if (!char || !char.position) return [];
     const targets: { row: number; col: number }[] = [];
     const { grid } = gameState.board;
-    const occupied = new Set(
-      allChars.filter((c) => c.isAlive && c.id !== selectedCharId && c.position)
-        .map((c) => `${c.position!.row},${c.position!.col}`)
-    );
-
-    // BFS
     const visited = new Map<string, number>();
-    const queue: { row: number; col: number; steps: number }[] = [
-      { ...char.position, steps: 0 },
-    ];
+    const queue: { row: number; col: number; steps: number }[] = [{ ...char.position, steps: 0 }];
     visited.set(`${char.position.row},${char.position.col}`, 0);
     const dirs = [[-1,0],[1,0],[0,-1],[0,1]];
     while (queue.length > 0) {
       const { row, col, steps } = queue.shift()!;
-      if (steps > 0 && !occupied.has(`${row},${col}`)) targets.push({ row, col });
+      const occupied = allChars.some((c) => c.isAlive && c.id !== charId && c.position?.row === row && c.position?.col === col);
+      if (steps > 0 && !occupied) targets.push({ row, col });
       if (steps >= maxSteps) continue;
       for (const [dr, dc] of dirs) {
         const nr = row + dr; const nc = col + dc;
         const key = `${nr},${nc}`;
         const cell = grid[nr]?.[nc];
-        if (!cell) continue;
-        const passable = ["OPEN","STARTING_MAJOR","LAVA"].includes(cell.type);
-        if (!passable) continue;
-        // Can pass through friendlies but not enemies
-        const charHere = allChars.find(
-          (c) => c.isAlive && c.position?.row === nr && c.position?.col === nc
-        );
+        if (!cell || !["OPEN","STARTING_MAJOR","LAVA"].includes(cell.type)) continue;
+        const charHere = allChars.find((c) => c.isAlive && c.position?.row === nr && c.position?.col === nc);
         if (charHere) {
-          const charTeam = gameState.teams.find(
-            (t) => t.majorCharacter.id === charHere.id || t.minorCharacters.some((m) => m.id === charHere.id)
-          );
-          if (charTeam?.id !== myTeamId) continue; // enemy blocks
+          const teamHere = gameState.teams.find((t) => t.majorCharacter.id === charHere.id || t.minorCharacters.some((m) => m.id === charHere.id));
+          if (!canPassThrough(teamHere?.id ?? "")) continue;
         }
         if (!visited.has(key) || visited.get(key)! > steps + 1) {
           visited.set(key, steps + 1);
@@ -150,6 +187,24 @@ export default function App() {
       }
     }
     return targets;
+  };
+
+  // Valid destinations for MOVE phase (own character, can pass friendlies, blocked by enemies)
+  const validMoveTargets = (() => {
+    if (!gameState || !isMyTurn) return [];
+    if (gameState.currentPhase === "MOVE" && selectedCharId && gameState.currentDieRoll) {
+      const stepsUsed = gameState.characterMovesUsed[selectedCharId] ?? 0;
+      const maxSteps = gameState.currentDieRoll.moveCount - stepsUsed;
+      return maxSteps > 0 ? bfsReachable(selectedCharId, maxSteps, (teamId) => teamId === myTeamId) : [];
+    }
+    if (gameState.currentPhase === "PUSH" && gameState.pendingSpecialMove) {
+      return bfsReachable(gameState.pendingSpecialMove.characterId, gameState.pendingSpecialMove.stepsRemaining, () => false);
+    }
+    if (gameState.currentPhase === "BONUS_MOVE" && gameState.pendingSpecialMove) {
+      // Bonus mover can pass through friendlies, blocked by enemies
+      return bfsReachable(gameState.pendingSpecialMove.characterId, gameState.pendingSpecialMove.stepsRemaining, (teamId) => teamId === myTeamId);
+    }
+    return [];
   })();
 
   // Playable cards in ACTION phase
@@ -160,11 +215,18 @@ export default function App() {
 
   const handleCellClick = useCallback((row: number, col: number) => {
     if (!gameState || !roomCode || !isMyTurn) return;
+    const dest = { row, col };
     if (gameState.currentPhase === "MOVE" && selectedCharId) {
-      const dest = { row, col };
       if (validMoveTargets.some((t) => t.row === row && t.col === col)) {
-        // Build a simple direct path (server validates fully)
         sendAction(roomCode, { type: "MOVE", characterId: selectedCharId, path: [dest] });
+      }
+    } else if (gameState.currentPhase === "PUSH" && gameState.pendingSpecialMove) {
+      if (validMoveTargets.some((t) => t.row === row && t.col === col)) {
+        sendAction(roomCode, { type: "PUSH_MOVE", path: [dest] });
+      }
+    } else if (gameState.currentPhase === "BONUS_MOVE" && gameState.pendingSpecialMove) {
+      if (validMoveTargets.some((t) => t.row === row && t.col === col)) {
+        sendAction(roomCode, { type: "BONUS_MOVE", path: [dest] });
       }
     }
   }, [gameState, roomCode, isMyTurn, selectedCharId, validMoveTargets]);
@@ -204,9 +266,19 @@ export default function App() {
     const card = myTeam?.hand.find((c) => c.id === selectedCardId);
     if (!card) return;
     if (card.type === "SPECIAL") {
-      sendAction(roomCode, { type: "PLAY", cardId: selectedCardId, characterId: selectedCharId });
+      const effectType = card.specialEffect?.type;
+      const needsEnemyTarget = effectType === "PUSH_CHARACTER" || effectType === "DEAL_UNBLOCKABLE_DAMAGE";
+      if (needsEnemyTarget && !selectedTargetId) return;
+      const allGameChars = gameState.teams.flatMap((t) => [t.majorCharacter, ...t.minorCharacters]);
+      const target = selectedTargetId ? allGameChars.find((c) => c.id === selectedTargetId) : null;
+      addLog("action", `Playing ${card.name}${target ? ` on ${target.name}` : ""}`);
+      sendAction(roomCode, { type: "PLAY", cardId: selectedCardId, characterId: selectedCharId, targetId: selectedTargetId ?? undefined });
     } else {
       if (!selectedTargetId) return;
+      const target = gameState.teams.flatMap((t) => [t.majorCharacter, ...t.minorCharacters]).find((c) => c.id === selectedTargetId);
+      const atkStr = card.attackValue != null ? ` | ATK ${card.attackValue}${card.unblockable ? " (unblockable)" : ""}` : "";
+      const defStr = card.defendValue != null ? ` | DEF ${card.defendValue}` : "";
+      addLog("action", `Playing ${card.name}${atkStr}${defStr} → ${target?.name ?? "?"}`);
       sendAction(roomCode, {
         type: "PLAY", cardId: selectedCardId,
         characterId: selectedCharId, targetId: selectedTargetId,
@@ -241,7 +313,7 @@ export default function App() {
             </h1>
             <button
               style={{ background: "#c0392b", color: "#fff", padding: "12px 32px", fontSize: 16, borderRadius: 8, marginTop: 16 }}
-              onClick={() => { setScreen("lobby"); setGameState(null); setRoomCode(null); }}
+              onClick={() => { sessionStorage.removeItem("epic-duels-room-code"); setScreen("lobby"); setGameState(null); setRoomCode(null); }}
             >
               Back to Lobby
             </button>
@@ -273,14 +345,22 @@ export default function App() {
 
       {/* Main layout */}
       <div style={styles.layout}>
-        {/* Left: opponent panel */}
-        <div style={styles.sidebar}>
+        {/* Left: both character panels stacked */}
+        <div style={styles.leftSidebar}>
           {opponentTeam && (
             <CharacterPanel
               team={opponentTeam}
               label="Opponent"
               color={PLAYER_COLORS[myTeamIndex === 0 ? 1 : 0]}
               isActive={!isMyTurn}
+            />
+          )}
+          {myTeam && (
+            <CharacterPanel
+              team={myTeam}
+              label="You"
+              color={PLAYER_COLORS[myTeamIndex]}
+              isActive={isMyTurn}
             />
           )}
         </div>
@@ -304,28 +384,21 @@ export default function App() {
               selectedCardId={selectedCardId}
               selectedCharId={selectedCharId}
               selectedTargetId={selectedTargetId}
-              onRoll={() => sendAction(roomCode!, { type: "ROLL" })}
-              onConfirmMove={() => sendAction(roomCode!, { type: "SKIP_MOVE" })}
-              onResetMove={() => sendAction(roomCode!, { type: "RESET_MOVE" })}
-              onDraw={() => sendAction(roomCode!, { type: "DRAW" })}
+              onRoll={() => { addLog("action", "Rolling die…"); sendAction(roomCode!, { type: "ROLL" }); }}
+              onConfirmMove={() => { addLog("action", "Movement confirmed."); sendAction(roomCode!, { type: "SKIP_MOVE" }); }}
+              onResetMove={() => { addLog("action", "Movement reset."); sendAction(roomCode!, { type: "RESET_MOVE" }); }}
+              onDraw={() => { addLog("action", "Drawing a card."); sendAction(roomCode!, { type: "DRAW" }); }}
               onPlayCard={handlePlayCard}
               onHeal={() => {
-                if (selectedCardId) sendAction(roomCode!, { type: "HEAL", cardId: selectedCardId });
+                if (selectedCardId) { addLog("action", "Healing with dead minor's card."); sendAction(roomCode!, { type: "HEAL", cardId: selectedCardId }); }
               }}
             />
           </div>
         </div>
 
-        {/* Right: my panel */}
-        <div style={styles.sidebar}>
-          {myTeam && (
-            <CharacterPanel
-              team={myTeam}
-              label="You"
-              color={PLAYER_COLORS[myTeamIndex]}
-              isActive={isMyTurn}
-            />
-          )}
+        {/* Right: game log */}
+        <div style={styles.rightSidebar}>
+          <GameLog entries={log} />
         </div>
       </div>
 
@@ -353,6 +426,7 @@ export default function App() {
               setSelectedCharId(attacker?.id ?? null);
             }
           }}
+          myTeam={myTeam ?? undefined}
           phase={gameState.currentPhase}
         />
       </div>
@@ -368,8 +442,9 @@ const styles: Record<string, React.CSSProperties> = {
   },
   logo: { color: "#ffe81f", fontWeight: 900, fontSize: 18, letterSpacing: "0.1em" },
   roomLabel: { color: "#888", fontSize: 13 },
-  layout: { display: "flex", gap: 12, padding: "12px 16px", flex: 1 },
-  sidebar: { display: "flex", flexDirection: "column", gap: 12, minWidth: 220 },
+  layout: { display: "flex", gap: 12, padding: "12px 16px", flex: 1, alignItems: "stretch" },
+  leftSidebar: { display: "flex", flexDirection: "column", gap: 12, minWidth: 260, width: 260 },
+  rightSidebar: { display: "flex", flexDirection: "column", minWidth: 240, width: 240 },
   center: { flex: 1, display: "flex", flexDirection: "column", gap: 8 },
   handArea: { borderTop: "1px solid #222", padding: "12px 16px", background: "#0a0a14" },
   gameOverOverlay: {

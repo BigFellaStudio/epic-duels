@@ -33,7 +33,9 @@ export default function ActionBar({
 
   const selectedCard = myTeam?.hand.find((c) => c.id === selectedCardId) ?? null;
   const isCombatCard = selectedCard?.type === "BASIC_COMBAT" || selectedCard?.type === "POWER_COMBAT";
-  const canPlay = !!selectedCardId && !!selectedCharId && (!isCombatCard || !!selectedTargetId);
+  const needsEnemyTarget = isCombatCard || selectedCard?.specialEffect?.type === "PUSH_CHARACTER" || selectedCard?.specialEffect?.type === "DEAL_UNBLOCKABLE_DAMAGE";
+  const needsTarget = needsEnemyTarget;
+  const canPlay = !!selectedCardId && !!selectedCharId && (!needsTarget || !!selectedTargetId);
   const canPlayCombat = canPlay && !!selectedTargetId;
 
   return (
@@ -64,6 +66,14 @@ export default function ActionBar({
           <button style={btn("#c0392b")} onClick={onRoll}>🎲 Roll Die</button>
         )}
 
+        {isMyTurn && currentPhase === "PUSH" && (
+          <span style={styles.hint}>Click a highlighted cell to push the enemy character.</span>
+        )}
+
+        {isMyTurn && currentPhase === "BONUS_MOVE" && (
+          <span style={styles.hint}>Click a highlighted cell to move your character.</span>
+        )}
+
         {isMyTurn && currentPhase === "MOVE" && (
           <>
             <span style={styles.hint}>Click a character, then a highlighted cell to move.</span>
@@ -76,7 +86,7 @@ export default function ActionBar({
           <>
             <button style={btn("#2980b9")} onClick={onDraw}>Draw Card</button>
             <button style={btn("#8e44ad")} onClick={onPlayCard} disabled={!canPlay}>
-              {isCombatCard && !selectedTargetId ? "Click enemy to target" : "Play Card"}
+              {needsTarget && !selectedTargetId ? "Click enemy to target" : "Play Card"}
             </button>
             <button style={btn("#27ae60")} onClick={onHeal} disabled={!canHeal}>
               Heal (+1 HP)
@@ -101,25 +111,25 @@ function DieDisplay({ roll }: { roll: DieRollResult }) {
 }
 
 const btn = (bg: string): React.CSSProperties => ({
-  background: bg, color: "#fff", padding: "10px 20px",
-  borderRadius: 6, fontWeight: 700, fontSize: 14,
+  background: bg, color: "#fff", padding: "10px 22px",
+  borderRadius: 6, fontWeight: 700, fontSize: 15,
 });
 
 const styles: Record<string, React.CSSProperties> = {
   bar: {
     background: "#0d0d1a", border: "1px solid #222", borderRadius: 8,
-    padding: "12px 16px", display: "flex", alignItems: "center",
+    padding: "14px 18px", display: "flex", alignItems: "center",
     gap: 20, flexWrap: "wrap",
   },
   phase: { display: "flex", alignItems: "center", gap: 8 },
-  phaseLabel: { color: "#666", fontSize: 12 },
-  phaseValue: { color: "#ffe81f", fontWeight: 700, fontSize: 15 },
-  actions: { color: "#aaa", fontSize: 12, marginLeft: 8 },
+  phaseLabel: { color: "#666", fontSize: 14 },
+  phaseValue: { color: "#ffe81f", fontWeight: 700, fontSize: 17 },
+  actions: { color: "#aaa", fontSize: 14, marginLeft: 8 },
   die: { display: "flex", alignItems: "center", gap: 6 },
-  dieLabel: { color: "#666", fontSize: 12 },
-  dieValue: { color: "#ff9f43", fontWeight: 900, fontSize: 22 },
-  dieWho: { color: "#aaa", fontSize: 12 },
+  dieLabel: { color: "#666", fontSize: 14 },
+  dieValue: { color: "#ff9f43", fontWeight: 900, fontSize: 24 },
+  dieWho: { color: "#aaa", fontSize: 14 },
   buttons: { display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", flex: 1 },
-  waiting: { color: "#888", fontStyle: "italic", fontSize: 14 },
-  hint: { color: "#aaa", fontSize: 13 },
+  waiting: { color: "#888", fontStyle: "italic", fontSize: 15 },
+  hint: { color: "#aaa", fontSize: 15 },
 };

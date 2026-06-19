@@ -3,7 +3,7 @@
 export type CharacterRole = "MAJOR" | "MINOR";
 export type CombatType = "MELEE" | "RANGED" | "BOTH";
 export type CardType = "BASIC_COMBAT" | "POWER_COMBAT" | "SPECIAL";
-export type TurnPhase = "ROLL" | "MOVE" | "ACTION" | "COMBAT_RESPONSE" | "END";
+export type TurnPhase = "ROLL" | "MOVE" | "ACTION" | "COMBAT_RESPONSE" | "PUSH" | "BONUS_MOVE" | "END";
 
 export type CellType =
   | "OPEN"
@@ -57,6 +57,8 @@ export interface Card {
   attackValue: number | null;
   defendValue: number | null;
   specialEffect: SpecialEffect | null;
+  unblockable: boolean;
+  ranged: boolean;       // card can target any character regardless of attacker's combatType
   countsAsAction: boolean;
   description: string;
 }
@@ -115,15 +117,22 @@ export interface GameState {
   board: BoardState;
   actionsRemainingThisTurn: number;
   pendingCombat: CombatState | null;
+  pendingSpecialMove: PendingSpecialMove | null;
   winner: string | null;
   gameOver: boolean;
   characterMovesUsed: Record<string, number>; // charId → steps used this turn
   preMovePositions: Record<string, { row: number; col: number } | null>; // charId → position before move phase
 }
 
+export interface PendingSpecialMove {
+  type: "PUSH" | "BONUS_MOVE";
+  characterId: string;
+  stepsRemaining: number;
+}
+
 // Socket event payloads
 export interface ActionPayload {
-  type: "ROLL" | "MOVE" | "DRAW" | "PLAY" | "HEAL" | "DEFEND" | "SKIP_MOVE" | "RESET_MOVE";
+  type: "ROLL" | "MOVE" | "DRAW" | "PLAY" | "HEAL" | "DEFEND" | "SKIP_MOVE" | "RESET_MOVE" | "PUSH_MOVE" | "BONUS_MOVE";
   characterId?: string;
   path?: { row: number; col: number }[];
   cardId?: string;
